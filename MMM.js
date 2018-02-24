@@ -1,3 +1,15 @@
+var app = require("express")();
+var http = require("http").Server(app);
+var io = require("socket.io")(http);
+
+app.get("/", function(req, res) {
+    res.sendFile(__dirname + "/index.html");
+});
+
+http.listen(3000, function () {
+    console.log("listening on *:3000");
+});
+
 var players = [];
 
 var samePosition = function (p1, p2) {
@@ -8,7 +20,7 @@ var newPlayer = function () {
     players.push({
         pos: {x: 0, y: 0},
         dest: {x: 0, y: 0},
-        timeSinceLastMovement: 0
+        timeTilNextMovement: 0
     });
 }
 
@@ -19,9 +31,9 @@ var gameLoop = (function () {
         for (var i = 0; i < players.length; i++) {
             player = players[i];
             if (!samePosition(player.pos, player.dest)) {
-                player.timeSinceLastMovement += newTime - lastTime;
-                if (player.timeSinceLastMovement > 100) {
-                    player.timeSinceLastMovement -= 100;
+                player.timeTilNextMovement -= newTime - lastTime;
+                if (player.timeTilNextMovement <= 0) {
+                    player.timeTilNextMovement = 500;
                     if (player.pos.x < player.dest.x) {
                         player.pos.x++;
                     }
@@ -42,12 +54,14 @@ var gameLoop = (function () {
     });
 })();
 
-newPlayer();
-newPlayer();
-players[0].dest.x = 8;
-players[0].dest.y = 20;
-players[1].dest.x = 6;
-players[1].dest.y = 3;
-while (true) {
+io.on("connection", function (socket) {
+    console.log("new guy");
+    newPlayer();
+    players[players.length - 1].dest.x = Math.round(Math.random() * 10);
+    players[players.length - 1].dest.y = Math.round(Math.random() * 10);
+});
+
+
+setInterval(function () {
     gameLoop();
-}
+}, 2);
