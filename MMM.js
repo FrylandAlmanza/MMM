@@ -18,48 +18,109 @@ http.listen(3000, function () {
     console.log("listening on *:3000");
 });
 
-var players = {};
+var entities = {};
+var entityCounter = 0;
 
 var samePosition = function (p1, p2) {
     return p1.x === p2.x && p1.y === p2.y;
 }
 
+var ents = Object.freeze({PLAYER: 0, CHICKEN: 1});
+
 var newPlayer = function (socket) {
-    players[socket.id] = {
+    var id = socket.id;
+    entities[id] = {
+        etype: ents.PLAYER,
         pos: {x: 0, y: 0},
         dest: {x: 0, y: 0},
         timeTilNextMovement: 0,
-        socket: socket
+        target: null,
+        socket: socket,
+        id: id,
+        alive: true
     };
+    return entities[id];
+}
+
+var newChicken = function () {
+    var id = entityCounter++
+    entities[id] = {
+        etype: ents.CHICKEN,
+        pos: {
+            x: Math.floor(Math.random() * 30),
+            y: Math.floor(Math.random() * 30)
+        },
+        dest: {
+            x: Math.floor(Math.random() * 30),
+            y: Math.floor(Math.random() * 30)
+        },
+        timeTilNextMovement: Math.floor(Math.random() * 500),
+        target: null,
+        id: id,
+        alive: true
+    };
+    return entities[id];
 }
 
 var gameLoop = (function () {
     var lastTime = new Date();
+    for (var i = 0; i < 10; i++) {
+        var chicken = newChicken();
+        io.emit("new", {
+            id: chicken.id,
+            x: chicken.x,
+            y: chicken.y,
+            you: false,
+            etype: ents.CHICKEN
+        });
+    }
     return (function () {
         var newTime = new Date();
-        Object.entries(players).forEach(function (key, value) {
-            var player = key[1];
-            if (!samePosition(player.pos, player.dest)) {
-                player.timeTilNextMovement -= newTime - lastTime;
-                if (player.timeTilNextMovement <= 0) {
-                    player.timeTilNextMovement = 500;
-                    if (player.pos.x < player.dest.x) {
-                        player.pos.x++;
+        Object.entries(entities).forEach(function (key, value) {
+            var entity = key[1];
+            if (!entity.alive) return 0;
+            if (!samePosition(entity.pos, entity.dest)) {
+                entity.timeTilNextMovement -= newTime - lastTime;
+                if (entity.timeTilNextMovement <= 0) {
+                    entity.timeTilNextMovement = 500;
+                    if (entity.pos.x < entity.dest.x) {
+                        entity.pos.x++;
                     }
-                    if (player.pos.x > player.dest.x) {
-                        player.pos.x--;
+                    if (entity.pos.x > entity.dest.x) {
+                        entity.pos.x--;
                     }
-                    if (player.pos.y < player.dest.y) {
-                        player.pos.y++;
+                    if (entity.pos.y < entity.dest.y) {
+                        entity.pos.y++;
                     }
-                    if (player.pos.y > player.dest.y) {
-                        player.pos.y--;
+                    if (entity.pos.y > entity.dest.y) {
+                        entity.pos.y--;
                     }
-                    //console.log("p" + i + ": (" + player.pos.x + ", " + player.pos.y + ")");
+                    if (entity.etype === ents.CHICKEN) {
+                        if (entity.pos.x === entity.dest.x &&
+                            entity.pos.y === entity.dest.y) {
+                            entity.dest.x = Math.floor(Math.random() * 30);
+                            entity.dest.y = Math.floor(Math.random() * 30);
+                            entity.timeTilNextMovement = 5000;
+                        }
+                    }
+                    if (entity.target !== null) {
+                        var target = entities[entity.target];
+                        entity.dest.x = target.pos.x;
+                        entity.dest.y = target.pos.y;
+                        if (entity.pos.x === target.pos.x &&
+                            entity.pos.y === target.pos.y) {
+                            target.alive = false;
+                            entity.target = null;
+                            entity.dest.x = entity.pos.x;
+                            entity.dest.y = entity.pos.y;
+                            io.emit("kill", {id: target.id});
+                        }
+                    }
+                    //console.log("p" + i + ": (" + entity.pos.x + ", " + entity.pos.y + ")");
                     io.emit("move", {
-                        id: player.socket.id,
-                        x: player.pos.x,
-                        y: player.pos.y
+                        id: entity.id,
+                        x: entity.pos.x,
+                        y: entity.pos.y
                     });
                 }
             }
@@ -71,32 +132,39 @@ var gameLoop = (function () {
 io.on("connection", function (socket) {
     console.log("new guy");
     newPlayer(socket);
-    var p = players[socket.id];
-    p.dest.x = Math.round(Math.random() * 10);
-    p.dest.y = Math.round(Math.random() * 10);
-    Object.entries(players).forEach(function (key, value) {
-        var player = key[1];
+    var p = entities[socket.id];
+    Object.entries(entities).forEach(function (key, value) {
+        var entity = key[1];
         socket.emit("new", {
-            id: player.socket.id,
-            x: player.pos.x,
-            y: player.pos.y,
-            you: socket.id === player.socket.id
+            id: entity.id,
+            x: entity.pos.x,
+            y: entity.pos.y,
+            you: socket.id === entity.id,
+            etype: entity.etype
         });
     });
     socket.broadcast.emit("new", {
         id: socket.id,
         x: p.pos.x,
         y: p.pos.y,
-        you: false
+        you: false,
+        etype: ents.PLAYER
     });
 
     socket.on("destination", function (msg) {
-        players[socket.id].dest = msg;
+        entities[socket.id].dest.x = msg.x;
+        entities[socket.id].dest.y = msg.y;
+    });
+
+    socket.on("target", function (msg) {
+        entities[socket.id].target = msg.id;
+        entities[socket.id].dest.x = entities[msg.id].pos.x;
+        entities[socket.id].dest.y = entities[msg.id].pos.y;
     });
 
     socket.on("disconnect", function () {
         console.log("They gone.");
-        delete players[socket.id];
+        delete entities[socket.id];
         io.emit("gone", {id: socket.id});
     });
 });
