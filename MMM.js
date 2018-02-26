@@ -170,10 +170,25 @@ io.on("connection", function (socket) {
         entities[socket.id].dest.y = entities[msg.id].pos.y;
     });
 
+    socket.on("chat", function (msg) {
+        io.emit("chat", {id: socket.id, text: msg});
+    });
+
     socket.on("disconnect", function () {
         console.log("They gone.");
         delete entities[socket.id];
         io.emit("gone", {id: socket.id});
+    });
+
+    socket.on("positions?", function () {
+        Object.entries(entities).forEach(function (key, value) {
+            var entity = key[1];
+            socket.emit("at", {
+                id: entity.id,
+                x: entity.pos.x,
+                y: entity.pos.y,
+            });
+        });
     });
 });
 

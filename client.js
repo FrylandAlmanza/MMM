@@ -1,6 +1,8 @@
 var ents = Object.freeze({PLAYER: 0, CHICKEN: 1});
 var tileSize = 32;
 
+var myid;
+
 Crafty.init(1200, 800, document.getElementById("screen"));
 var socket;
 Crafty.sprite("graphicsscaled.png", {
@@ -8,6 +10,22 @@ Crafty.sprite("graphicsscaled.png", {
     other: [tileSize, 0, tileSize, tileSize],
     chicken: [0, tileSize, tileSize, tileSize],
     dead: [tileSize, tileSize, tileSize, tileSize]
+});
+
+Crafty.c("Comment", {
+    draft: "",
+    framesSince: 0,
+    events: {
+        "EnterFrame": function (e) {
+            this.framesSince++;
+            if (this.framesSince > 1500) this.text("");
+        }
+    },
+    say: function () {
+        this.text(this.draft);
+        this.framesSince = 0;
+        this.draft = "";
+    }
 });
 
 Crafty.c("Destination", {
@@ -53,6 +71,7 @@ Crafty.e("2D, DOM, Mouse, Color")
     });
 
 var entities = {};
+var comments = {};
 
 socket = io();
 
@@ -71,6 +90,26 @@ socket.on("new", function (msg) {
         .bind("Click", function(e) {
             socket.emit("target", {id: msg.id});
         });
+    comments[msg.id] = Crafty.e("2D, DOM, Text, Comment")
+        .attr({
+            x: msg.x * tileSize,
+            y: msg.y * tileSize - 15
+        })
+        .text("")
+        .bind("EnterFrame", function () {
+            this.x = entities[msg.id].x;
+            this.y = entities[msg.id].y - 15;
+        });
+    if (msg.you) {
+        myid = msg.id;
+        Crafty.bind("KeyDown", function (e) {
+            if (e.key !== 13) {
+                comments[myid].draft += String.fromCharCode(e.key);
+            } else {
+                socket.emit("chat", comments[myid].draft);
+            }
+        });
+    }
 });
 
 socket.on("kill", function (msg) {
@@ -83,7 +122,21 @@ socket.on("move", function (msg) {
     entities[msg.id].moy = msg.y * tileSize;
 });
 
+socket.on("at", function (msg) {
+    entities[msg.id].x = msg.x * tileSize;
+    entities[msg.id].y = msg.y * tileSize;
+});
+
+socket.on("chat", function (msg) {
+    comments[msg.id].draft = msg.text;
+    comments[msg.id].say();
+});
+
 socket.on("gone", function (msg) {
     entities[msg.id].destroy();
     delete entities[msg.id];
+});
+
+window.addEventListener("focus", function () {
+    socket.emit("positions?");
 });
