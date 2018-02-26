@@ -14,6 +14,14 @@ app.get("/graphics.png", function(req, res) {
     res.sendFile(__dirname + "/graphics.png");
 });
 
+app.get("/graphicsscaled.png", function(req, res) {
+    res.sendFile(__dirname + "/graphicsscaled.png");
+});
+
+app.get("/style.css", function(req, res) {
+    res.sendFile(__dirname = "/style.css");
+});
+
 http.listen(3000, function () {
     console.log("listening on *:3000");
 });

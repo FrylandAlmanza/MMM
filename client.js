@@ -1,15 +1,40 @@
 var ents = Object.freeze({PLAYER: 0, CHICKEN: 1});
+var tileSize = 32;
 
-Crafty.init(600, 400, document.getElementById("screen"));
+Crafty.init(1200, 800, document.getElementById("screen"));
 var socket;
-Crafty.sprite("graphics.png", {
-    me: [0, 0, 16, 16],
-    other: [16, 0, 16, 16],
-    chicken: [0, 16, 16, 16],
-    dead: [16, 16, 16, 16]
+Crafty.sprite("graphicsscaled.png", {
+    me: [0, 0, tileSize, tileSize],
+    other: [tileSize, 0, tileSize, tileSize],
+    chicken: [0, tileSize, tileSize, tileSize],
+    dead: [tileSize, tileSize, tileSize, tileSize]
 });
+
+Crafty.c("Destination", {
+    mox: 0,
+    moy: 0,
+    events: {
+        "EnterFrame": function (e) {
+            var mpt = Math.ceil(32 / 500);
+            if (this.x < this.mox) {
+                this.x += mpt;
+            }
+            if (this.x > this.mox) {
+                this.x -= mpt;
+            }
+            if (this.y < this.moy) {
+                this.y += mpt;
+            }
+            if (this.y > this.moy) {
+                this.y -= mpt;
+            }
+        }
+    },
+    required: "2D"
+});
+
 Crafty.e("2D, DOM, Mouse, Color")
-    .attr({x: 0, y: 0, w: 600, h: 400, z: -2})
+    .attr({x: 0, y: 0, w: 1200, h: 800, z: -2})
     .color("darkgreen")
     .bind("Click", function (e) {
         socket.emit("destination", {
@@ -20,14 +45,12 @@ Crafty.e("2D, DOM, Mouse, Color")
 
 var entities = {};
 
-var tileSize = 16;
-
 socket = io();
 
 socket.on("new", function (msg) {
     var sprite = msg.you ? ", me" : ", other";
     if (msg.etype === ents.CHICKEN) sprite = ", chicken";
-    entities[msg.id] = Crafty.e("2D, DOM, Mouse" + sprite)
+    entities[msg.id] = Crafty.e("2D, DOM, Mouse, Destination" + sprite)
         .attr({
             x: msg.x * tileSize,
             y: msg.y * tileSize,
@@ -45,8 +68,8 @@ socket.on("kill", function (msg) {
 
 socket.on("move", function (msg) {
     if (!entities.hasOwnProperty(msg.id)) {return 0;};
-    entities[msg.id].x = msg.x * tileSize;
-    entities[msg.id].y = msg.y * tileSize;
+    entities[msg.id].mox = msg.x * tileSize;
+    entities[msg.id].moy = msg.y * tileSize;
 });
 
 socket.on("gone", function (msg) {
