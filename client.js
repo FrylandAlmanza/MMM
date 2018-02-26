@@ -13,9 +13,18 @@ Crafty.sprite("graphicsscaled.png", {
 Crafty.c("Destination", {
     mox: 0,
     moy: 0,
+    switchin: false,
     events: {
         "EnterFrame": function (e) {
-            var mpt = Math.ceil(32 / 500);
+            if (this.x === this.mox && this.y === this.moy) return;
+            var mpt = 1;
+            /*if (this.switchin === true) {
+                mpt = 2;
+                this.switchin = false;
+            } else {
+                this.switchin = true;
+            }*/
+
             if (this.x < this.mox) {
                 this.x += mpt;
             }
@@ -56,7 +65,9 @@ socket.on("new", function (msg) {
             y: msg.y * tileSize,
             w: tileSize,
             h: tileSize,
-            z: 2})
+            z: 2,
+            mox: msg.x * tileSize,
+            moy: msg.y * tileSize})
         .bind("Click", function(e) {
             socket.emit("target", {id: msg.id});
         });

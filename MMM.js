@@ -62,7 +62,7 @@ var newChicken = function () {
             x: Math.floor(Math.random() * 30),
             y: Math.floor(Math.random() * 30)
         },
-        timeTilNextMovement: Math.floor(Math.random() * 500),
+        timeTilNextMovement: Math.floor(Math.random() * 1000),
         target: null,
         id: id,
         alive: true
@@ -90,7 +90,7 @@ var gameLoop = (function () {
             if (!samePosition(entity.pos, entity.dest)) {
                 entity.timeTilNextMovement -= newTime - lastTime;
                 if (entity.timeTilNextMovement <= 0) {
-                    entity.timeTilNextMovement = 500;
+                    entity.timeTilNextMovement = 1000;
                     if (entity.pos.x < entity.dest.x) {
                         entity.pos.x++;
                     }
